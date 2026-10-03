@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Search games, manga, anime, movies, TV shows, and music from a single local page.">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141412" media="(prefers-color-scheme: dark)">
+  <title>Media search</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231a3f39'/%3E%3Cpath d='M8 11h16M8 16h12M8 21h8' stroke='%23f6f3ec' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #f3f0e8;
+      --surface: #fcfbf8;
+      --ink: #1c1915;
+      --muted: #4e4942;
+      --line: #ddd6c8;
+      --accent: #1a3f39;
+      --accent-ink: #f6f3ec;
+      --soft: #e5eeea;
+      --danger: #6f2f29;
+      color-scheme: light;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141412;
+        --surface: #1c1b18;
+        --ink: #f3efe6;
+        --muted: #c2bbb0;
+        --line: #4a473f;
+        --accent: #9dcec2;
+        --accent-ink: #132421;
+        --soft: #242c29;
+        --danger: #f0b2aa;
+        color-scheme: dark;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 1rem;
+      line-height: 1.45;
+      text-rendering: optimizeLegibility;
+    }
+
+    .wrap {
+      width: min(40rem, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 3.25rem 0 4rem;
+    }
+
+    h1 {
+      margin: 0 0 0.35rem;
+      font-size: clamp(1.7rem, 2.5vw, 2rem);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+    }
+
+    .lede {
+      margin: 0 0 1.5rem;
+      max-width: 34rem;
+      color: var(--muted);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.4rem;
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+
+    input[type="search"] {
+      width: 100%;
+      padding: 0.75rem 0.85rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--ink);
+      font: inherit;
+      font-size: 1.125rem;
+      line-height: 1.3;
+      caret-color: var(--accent);
+    }
+
+    input[type="search"]::placeholder { color: var(--muted); opacity: 1; }
+
+    input[type="search"]:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-color: var(--accent);
+    }
+
+    input[type="search"]:-webkit-autofill {
+      -webkit-text-fill-color: var(--ink);
+      box-shadow: 0 0 0 1000px var(--surface) inset;
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0.9rem 0 0.35rem;
+    }
+
+    .filters button {
+      min-height: 2.75rem;
+      padding: 0.35rem 0.8rem;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    .filters button:hover:not([aria-checked="true"]) {
+      background: var(--soft);
+      color: var(--ink);
+    }
+
+    .filters button[aria-checked="true"] {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-ink);
+    }
+
+    .filters button:focus-visible,
+    .card:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .status {
+      min-height: 1.4em;
+      margin: 0.35rem 0 0.4rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .status.is-error { color: var(--danger); }
+
+    .empty {
+      margin: 1.25rem 0 0;
+      color: var(--muted);
+    }
+
+    h2 {
+      margin: 1.35rem 0 0.15rem;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 650;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .card {
+      display: grid;
+      grid-template-columns: 4.25rem minmax(0, 1fr);
+      gap: 0.85rem;
+      align-items: center;
+      padding: 0.75rem 0.15rem;
+      border-bottom: 1px solid var(--line);
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .thumb {
+      display: grid;
+      place-items: center;
+      width: 4.25rem;
+      height: 5.75rem;
+      overflow: hidden;
+      border-radius: 4px;
+      background: var(--soft);
+    }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .mark {
+      color: var(--muted);
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .title {
+      display: block;
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+      text-decoration: underline;
+      text-decoration-color: var(--line);
+      text-underline-offset: 0.16em;
+    }
+
+    .card:hover .title,
+    .card:focus-visible .title { text-decoration-color: currentColor; }
+
+    .meta {
+      display: block;
+      margin-top: 0.15rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    footer {
+      margin-top: 3rem;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    footer a { color: inherit; }
+
+    footer a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 480px) {
+      .wrap { padding-top: 2rem; }
+      .thumb { width: 3.4rem; height: 4.6rem; }
+      .card { grid-template-columns: 3.4rem minmax(0, 1fr); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>Media search</h1>
+      <p class="lede">Games, manga, anime, movies, shows, and music. This page runs from the file on your computer.</p>
+    </header>
+
+    <form id="search-form" role="search">
+      <label for="q">Search titles</label>
+      <input id="q" name="q" type="search" placeholder="Hades, Berserk, Spirited Away…" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="120" autofocus>
+    </form>
+
+    <div class="filters" role="radiogroup" aria-label="Category">
+      <button type="button" role="radio" data-cat="all" aria-checked="true" tabindex="0">All</button>
+      <button type="button" role="radio" data-cat="games" aria-checked="false" tabindex="-1">Games</button>
+      <button type="button" role="radio" data-cat="manga" aria-checked="false" tabindex="-1">Manga</button>
+      <button type="button" role="radio" data-cat="anime" aria-checked="false" tabindex="-1">Anime</button>
+      <button type="button" role="radio" data-cat="movies" aria-checked="false" tabindex="-1">Movies</button>
+      <button type="button" role="radio" data-cat="tv" aria-checked="false" tabindex="-1">TV</button>
+      <button type="button" role="radio" data-cat="music" aria-checked="false" tabindex="-1">Music</button>
+    </div>
+
+    <p id="status" class="status" aria-live="polite"></p>
+    <div id="results"></div>
+
+    <footer>
+      <p>Catalogs:
+        <a href="https://en.wikipedia.org/">English Wikipedia</a>,
+        <a href="https://anilist.co/">AniList</a>,
+        <a href="https://www.tvmaze.com/">TVmaze</a>,
+        and the <a href="https://performance-partners.apple.com/search-api">Apple iTunes Search API</a>.
+        Titles and artwork stay with their publishers. Links open the original page.
+      </p>
+    </footer>
+  </main>
+  <noscript>
+    <p>This page needs JavaScript to search. It still runs entirely in your browser.</p>
+  </noscript>
+
+  <script>
+    (() => {
+      "use strict";
+
+      // Key-free catalogs that send Access-Control-Allow-Origin: *.
+      // Games and movies: English Wikipedia. Anime and manga: AniList.
+      // TV: TVmaze. Music: Apple iTunes Search (US albums).
+
+      const DEBOUNCE_MS = 320;
+      const MIN_CHARS = 2;
+      const LIMIT_ALL = 6;
+      const LIMIT_ONE = 12;
+      const ORDER = ["games", "manga", "anime", "movies", "tv", "music"];
+
+      const SOURCE = {
+        games: { label: "Games", type: "Game", dest: "Wikipedia" },
+        manga: { label: "Manga", type: "Manga", dest: "AniList" },
+        anime: { label: "Anime", type: "Anime", dest: "AniList" },
+        movies: { label: "Movies", type: "Movie", dest: "Wikipedia" },
+        tv: { label: "TV", type: "TV", dest: "TVmaze" },
+        music: { label: "Music", type: "Music", dest: "Apple Music" },
+      };
+
+      const FORMAT = {
+        TV: "TV",
+        TV_SHORT: "TV short",
+        MOVIE: "Movie",
+        SPECIAL: "Special",
+        OVA: "OVA",
+        ONA: "ONA",
+        MUSIC: "Music video",
+        MANGA: "Manga",
+        NOVEL: "Novel",
+        ONE_SHOT: "One-shot",
+        DOUJIN: "Doujin",
+        MANHWA: "Manhwa",
+        MANHUA: "Manhua",
+      };
+
+      const form = document.getElementById("search-form");
+      const input = document.getElementById("q");
+      const filters = document.querySelector(".filters");
+      const status = document.getElementById("status");
+      const results = document.getElementById("results");
+
+      let category = "all";
+      let generation = 0;
+      let timer = 0;
+      let controller = null;
+
+      function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text != null) node.textContent = text;
+        return node;
+      }
+
+      function cleanQuery(value) {
+        return value.replace(/["\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+      }
+
+      function currentQuery() {
+        return cleanQuery(input.value);
+      }
+
+      function limitFor(cat) {
+        return cat === "all" ? LIMIT_ALL : LIMIT_ONE;
+      }
+
+      function fail(code) {
+        const error = new Error(code);
+        error.code = code;
+        return error;
+      }
+
+      function isCancel(error) {
+        return error && error.name === "AbortError";
+      }
+
+      function requestSignal(parent) {
+        if (typeof AbortSignal.any === "function" && typeof AbortSignal.timeout === "function") {
+          return AbortSignal.any([parent, AbortSignal.timeout(15000)]);
+        }
+        return parent;
+      }
+
+      function safeUrl(value) {
+        if (!value) return "";
+        try {
+          const url = new URL(value);
+          if (url.protocol === "https:" || url.protocol === "http:") return url.href;
+        } catch (error) {
+          return "";
+        }
+        return "";
+      }
+
+      function countPhrase(count, singular, plural) {
+        const n = Number(count);
+        if (!n || n < 1) return "";
+        return n + " " + (n === 1 ? singular : plural);
+      }
+
+      function yearFromBlurb(text) {
+        if (!text) return "";
+        const patterns = [
+          /\bis an? ((?:18|19|20)\d{2})\b/i,
+          /\breleased in ((?:18|19|20)\d{2})\b/i,
+          /\b((?:18|19|20)\d{2})\b/,
+        ];
+        for (const pattern of patterns) {
+          const match = text.match(pattern);
+          if (match) return match[1];
+        }
+        return "";
+      }
+
+      function joinList(items) {
+        if (items.length <= 1) return items[0] || "";
+        if (items.length === 2) return items[0] + " and " + items[1];
+        return items.slice(0, -1).join(", ") + ", and " + items[items.length - 1];
+      }
+
+      function invalidate() {
+        clearTimeout(timer);
+        generation += 1;
+        if (controller) controller.abort();
+      }
+
+      async function readJson(response) {
+        if (response.status === 429) throw fail("rate");
+        if (!response.ok) throw fail("http");
+        return response.json();
+      }
+
+      async function searchWikipedia(query, template, limit, signal, sourceId) {
+        const params = new URLSearchParams({
+          action: "query",
+          format: "json",
+          origin: "*",
+          generator: "search",
+          gsrsearch: query + ' hastemplate:"' + template + '"',
+          gsrlimit: String(limit),
+          gsrnamespace: "0",
+          prop: "pageimages|extracts|info",
+          inprop: "url",
+          piprop: "thumbnail",
+          pithumbsize: "240",
+          pilicense: "any",
+          exintro: "1",
+          explaintext: "1",
+          exchars: "220",
+          redirects: "1",
+        });
+        const response = await fetch("https://en.wikipedia.org/w/api.php?" + params.toString(), { signal });
+        const data = await readJson(response);
+        if (data.error) throw fail("http");
+        const pages = data.query && data.query.pages ? Object.values(data.query.pages) : [];
+        pages.sort((a, b) => (a.index ?? 999) - (b.index ?? 999));
+        const source = SOURCE[sourceId];
+        const seen = new Set();
+        const items = [];
+        for (const page of pages) {
+          if (!page.title || seen.has(page.pageid)) continue;
+          seen.add(page.pageid);
+          const url = safeUrl(page.fullurl || page.canonicalurl);
+          if (!url) continue;
+          items.push({
+            source: sourceId,
+            type: source.type,
+            dest: source.dest,
+            title: page.title,
+            year: yearFromBlurb(page.extract || ""),
+            details: [],
+            image: safeUrl(page.thumbnail && page.thumbnail.source),
+            url,
+          });
+          if (items.length >= limit) break;
+        }
+        return items;
+      }
+
+      function anilistQuery(mode) {
+        const fields = "id title { romaji english native } startDate { year } format episodes chapters volumes coverImage { large medium } siteUrl";
+        const anime = "anime: Page(perPage: $perPage) { media(search: $search, type: ANIME, isAdult: false, sort: SEARCH_MATCH) { " + fields + " } }";
+        const manga = "manga: Page(perPage: $perPage) { media(search: $search, type: MANGA, isAdult: false, sort: SEARCH_MATCH) { " + fields + " } }";
+        const body = mode === "anime" ? anime : mode === "manga" ? manga : anime + " " + manga;
+        return "query ($search: String!, $perPage: Int) { " + body + " }";
+      }
+
+      function mapAnilist(entry, sourceId) {
+        if (!entry) return null;
+        const title = entry.title || {};
+        const name = title.english || title.romaji || title.native;
+        const url = safeUrl(entry.siteUrl);
+        if (!name || !url) return null;
+        const format = FORMAT[entry.format] || "";
+        const details = [];
+        if (format && format.toLowerCase() !== SOURCE[sourceId].type.toLowerCase()) details.push(format);
+        if (sourceId === "anime" && entry.format !== "MOVIE") {
+          const episodes = countPhrase(entry.episodes, "episode", "episodes");
+          if (episodes) details.push(episodes);
+        }
+        if (sourceId === "manga") {
+          const volumes = countPhrase(entry.volumes, "volume", "volumes");
+          const chapters = countPhrase(entry.chapters, "chapter", "chapters");
+          if (volumes) details.push(volumes);
+          else if (chapters) details.push(chapters);
+        }
+        const year = entry.startDate && entry.startDate.year ? String(entry.startDate.year) : "";
+        const image = safeUrl((entry.coverImage && (entry.coverImage.large || entry.coverImage.medium)) || "");
+        return {
+          source: sourceId,
+          type: SOURCE[sourceId].type,
+          dest: SOURCE[sourceId].dest,
+          title: name,
+          year,
+          details,
+          image,
+          url,
+        };
+      }
+
+      async function searchAnilist(query, limit, signal, mode) {
+        const response = await fetch("https://graphql.anilist.co", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({
+            query: anilistQuery(mode),
+            variables: { search: query, perPage: limit },
+          }),
+          signal,
+        });
+        const payload = await readJson(response);
+        if (!payload.data) throw fail("http");
+        const groups = [];
+        if (mode !== "manga") {
+          const media = (payload.data.anime && payload.data.anime.media) || [];
+          groups.push(okGroup("anime", media.map((entry) => mapAnilist(entry, "anime")).filter(Boolean).slice(0, limit)));
+        }
+        if (mode !== "anime") {
+          const media = (payload.data.manga && payload.data.manga.media) || [];
+          groups.push(okGroup("manga", media.map((entry) => mapAnilist(entry, "manga")).filter(Boolean).slice(0, limit)));
+        }
+        return groups;
+      }
+
+      async function searchTv(query, limit, signal) {
+        const response = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(query), { signal });
+        const data = await readJson(response);
+        if (!Array.isArray(data)) throw fail("http");
+        const items = [];
+        for (const row of data) {
+          const show = row && row.show;
+          if (!show || !show.name) continue;
+          const url = safeUrl(show.url);
+          if (!url) continue;
+          const network = (show.network && show.network.name) || (show.webChannel && show.webChannel.name) || "";
+          const genre = (show.genres && show.genres[0]) || "";
+          const image = show.image && (show.image.medium || show.image.original);
+          items.push({
+            source: "tv",
+            type: SOURCE.tv.type,
+            dest: SOURCE.tv.dest,
+            title: show.name,
+            year: show.premiered ? String(show.premiered).slice(0, 4) : "",
+            details: [network, genre].filter(Boolean),
+            image: safeUrl(image),
+            url,
+          });
+          if (items.length >= limit) break;
+        }
+        return items;
+      }
+
+      async function searchMusic(query, limit, signal) {
+        const params = new URLSearchParams({
+          term: query,
+          media: "music",
+          entity: "album",
+          limit: String(limit),
+          country: "US",
+        });
+        const response = await fetch("https://itunes.apple.com/search?" + params.toString(), { signal });
+        const data = await readJson(response);
+        if (!data || !Array.isArray(data.results)) throw fail("http");
+        const items = [];
+        const seen = new Set();
+        for (const album of data.results) {
+          if (!album.collectionName || seen.has(album.collectionId)) continue;
+          seen.add(album.collectionId);
+          const url = safeUrl(album.collectionViewUrl);
+          if (!url) continue;
+          const art = album.artworkUrl100 ? album.artworkUrl100.replace(/100x100bb/, "300x300bb") : "";
+          const tracks = countPhrase(album.trackCount, "track", "tracks");
+          items.push({
+            source: "music",
+            type: SOURCE.music.type,
+            dest: SOURCE.music.dest,
+            title: album.collectionName,
+            year: album.releaseDate ? String(album.releaseDate).slice(0, 4) : "",
+            details: [album.artistName, tracks].filter(Boolean),
+            image: safeUrl(art),
+            url,
+          });
+          if (items.length >= limit) break;
+        }
+        return items;
+      }
+
+      function okGroup(id, items) {
+        return { id, label: SOURCE[id].label, items, error: false, rateLimited: false };
+      }
+
+      function errorGroup(id, rateLimited) {
+        return { id, label: SOURCE[id].label, items: [], error: true, rateLimited: !!rateLimited };
+      }
+
+      async function guard(id, signal, fn) {
+        try {
+          const items = await fn(requestSignal(signal));
+          return [okGroup(id, items)];
+        } catch (error) {
+          if (isCancel(error)) throw error;
+          return [errorGroup(id, error && error.code === "rate")];
+        }
+      }
+
+      async function collect(cat, query, signal) {
+        const limit = limitFor(cat);
+        const jobs = [];
+        if (cat === "all" || cat === "games") {
+          jobs.push(guard("games", signal, (sig) => searchWikipedia(query, "Infobox video game", limit, sig, "games")));
+        }
+        if (cat === "all" || cat === "movies") {
+          jobs.push(guard("movies", signal, (sig) => searchWikipedia(query, "Infobox film", limit, sig, "movies")));
+        }
+        if (cat === "all" || cat === "tv") jobs.push(guard("tv", signal, (sig) => searchTv(query, limit, sig)));
+        if (cat === "all" || cat === "music") jobs.push(guard("music", signal, (sig) => searchMusic(query, limit, sig)));
+        if (cat === "all" || cat === "anime" || cat === "manga") {
+          const mode = cat === "all" ? "both" : cat;
+          jobs.push((async () => {
+            try {
+              return await searchAnilist(query, limit, requestSignal(signal), mode);
+            } catch (error) {
+              if (isCancel(error)) throw error;
+              const rate = error && error.code === "rate";
+              const groups = [];
+              if (mode !== "manga") groups.push(errorGroup("anime", rate));
+              if (mode !== "anime") groups.push(errorGroup("manga", rate));
+              return groups;
+            }
+          })());
+        }
+        const parts = await Promise.all(jobs);
+        const groups = parts.flat();
+        groups.sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
+        return groups;
+      }
+
+      function failureNote(groups) {
+        const failed = groups.filter((group) => group.error);
+        if (!failed.length) return "";
+        if (failed.every((group) => group.rateLimited)) return "AniList is busy. Wait a moment and try again.";
+        const names = failed.map((group) => group.label);
+        if (names.length === 1) return names[0] + " didn't respond.";
+        return joinList(names) + " didn't respond.";
+      }
+
+      function showSearching() {
+        status.classList.remove("is-error");
+        status.textContent = "Searching…";
+        results.replaceChildren();
+        results.setAttribute("aria-busy", "true");
+      }
+
+      function renderHint(query) {
+        status.classList.remove("is-error");
+        status.textContent = query ? "Type at least 2 characters." : "";
+        results.setAttribute("aria-busy", "false");
+        results.replaceChildren();
+        const hint = el("p", "empty", query
+          ? "Keep typing to search."
+          : "Type a title. All searches every catalog at once.");
+        results.append(hint);
+      }
+
+      function renderItem(item) {
+        const li = el("li");
+        li.dataset.source = item.source;
+        const link = el("a", "card");
+        link.href = item.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+
+        const thumb = el("span", "thumb");
+        thumb.setAttribute("aria-hidden", "true");
+        if (item.image) {
+          const img = el("img");
+          img.src = item.image;
+          img.alt = "";
+          img.loading = "lazy";
+          img.decoding = "async";
+          img.addEventListener("error", () => {
+            img.remove();
+            if (!thumb.querySelector(".mark")) thumb.append(el("span", "mark", item.type.slice(0, 1)));
+          });
+          thumb.append(img);
+        } else {
+          thumb.append(el("span", "mark", item.type.slice(0, 1)));
+        }
+
+        const text = el("span", "card-text");
+        const title = el("span", "title", item.title);
+        const more = el("span", "sr-only", ", opens in a new tab");
+        title.append(more);
+        const bits = [item.type, item.year].concat(item.details, [item.dest]).filter(Boolean);
+        text.append(title, el("span", "meta", bits.join(" · ")));
+        link.append(thumb, text);
+        li.append(link);
+        return li;
+      }
+
+      function showResults(groups, query) {
+        results.setAttribute("aria-busy", "false");
+        results.replaceChildren();
+        status.classList.remove("is-error");
+        const total = groups.reduce((sum, group) => sum + group.items.length, 0);
+        const note = failureNote(groups);
+        const allFailed = groups.length > 0 && groups.every((group) => group.error);
+
+        if (allFailed) {
+          status.classList.add("is-error");
+          status.textContent = note.indexOf("AniList is busy") === 0
+            ? note
+            : note.replace(/\.$/, "") + ". Check your connection and try again.";
+          return;
+        }
+
+        if (total === 0) {
+          status.textContent = "Nothing matched “" + query + "”.";
+          results.append(el("p", "empty", "Try another title, or switch category."));
+          return;
+        }
+
+        const count = total === 1 ? "1 result" : total + " results";
+        status.textContent = note ? count + ". " + note : count;
+
+        const showHeadings = category === "all";
+        for (const group of groups) {
+          if (!group.items.length) continue;
+          const section = el("section");
+          if (showHeadings) {
+            const heading = el("h2", null, group.label);
+            heading.id = "heading-" + group.id;
+            section.setAttribute("aria-labelledby", heading.id);
+            section.append(heading);
+          } else {
+            section.setAttribute("aria-label", group.label);
+          }
+          const list = el("ul", "results-list");
+          for (const item of group.items) list.append(renderItem(item));
+          section.append(list);
+          results.append(section);
+        }
+      }
+
+      async function run(query) {
+        const gen = ++generation;
+        if (controller) controller.abort();
+        controller = new AbortController();
+        const signal = controller.signal;
+        showSearching();
+        try {
+          const groups = await collect(category, query, signal);
+          if (gen !== generation) return;
+          showResults(groups, query);
+        } catch (error) {
+          if (gen !== generation || isCancel(error)) return;
+          results.setAttribute("aria-busy", "false");
+          status.classList.add("is-error");
+          status.textContent = "Something went wrong. Try again.";
+        }
+      }
+
+      function schedule() {
+        invalidate();
+        const query = currentQuery();
+        if (query.length < MIN_CHARS) {
+          renderHint(query);
+          return;
+        }
+        timer = setTimeout(() => run(query), DEBOUNCE_MS);
+      }
+
+      function syncTabs() {
+        for (const button of filters.querySelectorAll("[role='radio']")) {
+          const on = button.dataset.cat === category;
+          button.setAttribute("aria-checked", on ? "true" : "false");
+          button.tabIndex = on ? 0 : -1;
+        }
+      }
+
+      function selectCategory(id) {
+        if (!id || id === category) return;
+        category = id;
+        syncTabs();
+        invalidate();
+        const query = currentQuery();
+        if (query.length < MIN_CHARS) renderHint(query);
+        else run(query);
+      }
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        invalidate();
+        const query = currentQuery();
+        if (query.length < MIN_CHARS) renderHint(query);
+        else run(query);
+      });
+
+      input.addEventListener("input", schedule);
+
+      input.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape" || !input.value) return;
+        input.value = "";
+        invalidate();
+        renderHint("");
+      });
+
+      filters.addEventListener("click", (event) => {
+        const button = event.target.closest("[role='radio']");
+        if (!button) return;
+        selectCategory(button.dataset.cat);
+      });
+
+      filters.addEventListener("keydown", (event) => {
+        const buttons = [...filters.querySelectorAll("[role='radio']")];
+        const index = buttons.indexOf(document.activeElement);
+        if (index < 0) return;
+        let next = -1;
+        if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (index + 1) % buttons.length;
+        else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (index - 1 + buttons.length) % buttons.length;
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = buttons.length - 1;
+        if (next < 0) return;
+        event.preventDefault();
+        buttons[next].focus();
+        selectCategory(buttons[next].dataset.cat);
+      });
+
+      renderHint("");
+    })();
+  </script>
+</body>
+</html>

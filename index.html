@@ -304,9 +304,10 @@
     (() => {
       "use strict";
 
-      // Key-free catalogs that send Access-Control-Allow-Origin: *.
-      // Games and movies: English Wikipedia. Anime and manga: AniList.
-      // TV: TVmaze. Music: Apple iTunes Search (US albums).
+      // Games and movies: English Wikipedia. Anime and manga: AniList. TV: TVmaze.
+      // Those three allow fetch() from a file:// page (Access-Control-Allow-Origin: *).
+      // Music uses the iTunes Search API's JSONP callback. A cross-origin fetch from
+      // origin "null" does not get that CORS header (Apple varies it by Origin).
 
       const DEBOUNCE_MS = 320;
       const MIN_CHARS = 2;
@@ -553,7 +554,8 @@
         if (!Array.isArray(data)) throw fail("http");
         const items = [];
         for (const row of data) {
-          const show = row && row.show;
+          if (!row || typeof row.score !== "number" || row.score < 0.4) continue;
+          const show = row.show;
           if (!show || !show.name) continue;
           const url = safeUrl(show.url);
           if (!url) continue;
@@ -575,16 +577,9 @@
         return items;
       }
 
-      async function searchMusic(query, limit, signal) {
-        const params = new URLSearchParams({
-          term: query,
-          media: "music",
-          entity: "album",
-          limit: String(limit),
-          country: "US",
-        });
-        const response = await fetch("https://itunes.apple.com/search?" + params.toString(), { signal });
-        const data = await readJson(response);
+      let musicSeq = 0;
+
+      function mapAlbums(data, limit) {
         if (!data || !Array.isArray(data.results)) throw fail("http");
         const items = [];
         const seen = new Set();
@@ -608,6 +603,59 @@
           if (items.length >= limit) break;
         }
         return items;
+      }
+
+      // iTunes documents a callback parameter. Script JSONP works from file://,
+      // where fetch() is missing Access-Control-Allow-Origin.
+      function searchMusic(query, limit, signal) {
+        const id = ++musicSeq;
+        const callbackName = "__mediaSearchItunes";
+        return new Promise((resolve, reject) => {
+          if (signal.aborted) {
+            reject(signal.reason || new DOMException("Aborted", "AbortError"));
+            return;
+          }
+          const params = new URLSearchParams({
+            term: query,
+            media: "music",
+            entity: "album",
+            limit: String(limit),
+            country: "US",
+            callback: callbackName,
+          });
+          const script = document.createElement("script");
+          let settled = false;
+
+          function settle(error, value) {
+            if (settled) return;
+            settled = true;
+            signal.removeEventListener("abort", onAbort);
+            script.remove();
+            if (error) reject(error);
+            else resolve(value);
+          }
+
+          function onAbort() {
+            const reason = signal.reason;
+            settle(reason instanceof Error ? reason : new DOMException("Aborted", "AbortError"));
+          }
+
+          signal.addEventListener("abort", onAbort);
+          window[callbackName] = (data) => {
+            if (id !== musicSeq) return;
+            try {
+              settle(null, mapAlbums(data, limit));
+            } catch (error) {
+              settle(error);
+            }
+          };
+          script.src = "https://itunes.apple.com/search?" + params.toString();
+          script.async = true;
+          script.onerror = () => {
+            if (id === musicSeq) settle(fail("http"));
+          };
+          document.head.append(script);
+        });
       }
 
       function okGroup(id, items) {
@@ -714,11 +762,9 @@
 
         const text = el("span", "card-text");
         const title = el("span", "title", item.title);
-        const more = el("span", "sr-only", ", opens in a new tab");
-        title.append(more);
         const bits = [item.type, item.year].concat(item.details, [item.dest]).filter(Boolean);
         text.append(title, el("span", "meta", bits.join(" · ")));
-        link.append(thumb, text);
+        link.append(thumb, text, el("span", "sr-only", "Opens in a new tab."));
         li.append(link);
         return li;
       }

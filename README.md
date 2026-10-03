@@ -28,7 +28,7 @@ No API keys and no accounts. Each endpoint responds with `Access-Control-Allow-O
 | Anime | [AniList](https://anilist.co/) | `POST https://graphql.anilist.co` (`type: ANIME`) |
 | Movies | [English Wikipedia](https://en.wikipedia.org/) | same API, `hastemplate:"Infobox film"` |
 | TV | [TVmaze](https://www.tvmaze.com/api) | `https://api.tvmaze.com/search/shows?q=` |
-| Music | [Apple iTunes Search](https://performance-partners.apple.com/search-api) | `https://itunes.apple.com/search` (`media=music`, `entity=album`, US store) |
+| Music | [Apple iTunes Search](https://performance-partners.apple.com/search-api) | `https://itunes.apple.com/search` (`media=music`, `entity=album`, US store, JSONP `callback`) |
 
 On **All**, anime and manga share one AniList request. The other catalogs are requested in parallel. A failed catalog is named in the status line; the rest still render. AniList titles flagged as adult are omitted.
 
@@ -38,7 +38,7 @@ Checked from a browser-like client on 3 October 2026:
 
 - **Jikan** (`api.jikan.moe`) publishes only an IPv6 address and did not connect from this network. [AniList](https://docs.anilist.co/) answered a cross-origin GraphQL search for anime and manga, including covers and links, with no key. Its rate-limit header reported about 30 requests per minute, so the page waits until you pause typing.
 - **CheapShark** is key-free and documents CORS, but it rejects normal browser User-Agent strings. A page cannot replace that header, so the games search would fail in every browser. **Speedrun.com** allows CORS, but a name search for Zelda ranked fan games above the main series. English Wikipedia’s video-game infobox search returned Portal, Portal 2, and Hades in a sensible order, with thumbnails and article links.
-- **iTunes movie search** returned an empty catalog for Inception, Spirited Away, The Matrix, Toy Story, and even the word “love”, while album search still worked. Movies therefore use Wikipedia. TV uses TVmaze because it returns shows (with a year, network, and poster) rather than store season listings; iTunes had no hit for Severance.
+- **iTunes movie search** returned an empty catalog for Inception, Spirited Away, The Matrix, Toy Story, and even the word “love”, while album search still returned records. Movies therefore use Wikipedia. TV uses TVmaze because it returns shows (with a year, network, and poster) rather than store season listings; iTunes had no hit for Severance. Album results are loaded with JSONP because the search response omits CORS headers for a `file://` page.
 - **RAWG, IGDB, and TMDB** need API keys, so they are not used.
 
 ### Attribution
@@ -50,12 +50,15 @@ Checked from a browser-like client on 3 October 2026:
 
 ## Browser quirks
 
-- The page’s origin is `null`. These catalogs allow that by sending `Access-Control-Allow-Origin: *`. Requests do not send credentials.
-- Wikipedia’s API only adds that header when the query includes `origin=*`. The page always sends it.
-- AniList is a JSON `POST`, so the browser sends a preflight. AniList answers `OPTIONS` from `Origin: null` and allows `Content-Type`.
-- Game, movie, TV, and music requests are plain GETs with no custom headers, which avoids a preflight.
-- Chrome and Firefox allow these requests from a `file://` page. Safari often blocks network access from local files. If the status line says every catalog failed and you are in Safari, open the file in Chrome or Firefox.
+Checked by opening `index.html` from `file://` in headless Chrome (no special flags):
+
+- The page origin is `null`. Wikipedia, AniList, and TVmaze answer `fetch` with `Access-Control-Allow-Origin: *`. Requests do not send credentials.
+- Wikipedia only adds that header when the query includes `origin=*`. The page always sends it.
+- AniList is a JSON `POST`, so the browser sends a preflight. AniList answers `OPTIONS` from `Origin: null` and allows `Content-Type`. That preflight succeeded from `file://`.
+- iTunes varies CORS by the `Origin` header and does **not** send `Access-Control-Allow-Origin` for `null`. A normal `fetch` from this page fails. Music therefore uses Apple’s documented `callback` parameter (JSONP via a script tag), which is not subject to that check. The callback name is fixed in the page; the search text is only a query parameter.
+- Safari often blocks network access from local files, including script tags. If every catalog fails and you are in Safari, open the file in Chrome or Firefox.
 - A catalog that takes longer than about 15 seconds is skipped so the others can still appear.
+- TV results below a loose relevance score are dropped so a search does not fill up with unrelated shows.
 - Music is the US Apple Music catalog. Game and movie matches are English Wikipedia, so English titles work best. AniList also matches romaji.
 - Nothing is cached by a service worker. Refresh the file after you replace it.
 
